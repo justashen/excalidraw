@@ -82,6 +82,9 @@ export const AppMainMenu: React.FC<{
       <MainMenu.DefaultItems.Preferences />
       <MainMenu.DefaultItems.ToggleTheme allowSystemTheme theme={props.theme} />
       <MainMenu.ItemCustom>
+        <MainMenu.DefaultItems.ChangeVibe style={{ width: "100%" }} />
+      </MainMenu.ItemCustom>
+      <MainMenu.ItemCustom>
         <LanguageList style={{ width: "100%" }} />
       </MainMenu.ItemCustom>
       <MainMenu.DefaultItems.ChangeCanvasBackground />

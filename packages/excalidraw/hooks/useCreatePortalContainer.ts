@@ -12,7 +12,7 @@ export const useCreatePortalContainer = (opts?: {
   const [div, setDiv] = useState<HTMLDivElement | null>(null);
 
   const editorInterface = useEditorInterface();
-  const { theme } = useUIAppState();
+  const { theme, vibe } = useUIAppState();
 
   const { container: excalidrawContainer } = useExcalidrawContainer();
 
@@ -25,8 +25,9 @@ export const useCreatePortalContainer = (opts?: {
         editorInterface.formFactor === "phone",
       );
       div.classList.toggle("theme--dark", theme === THEME.DARK);
+      div.classList.toggle("vibe--spotify", vibe === "spotify");
     }
-  }, [div, theme, editorInterface.formFactor, opts?.className]);
+  }, [div, theme, vibe, editorInterface.formFactor, opts?.className]);
 
   useLayoutEffect(() => {
     const ownerDocument = excalidrawContainer?.ownerDocument;

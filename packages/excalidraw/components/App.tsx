@@ -856,8 +856,20 @@ class App extends React.Component<AppProps, AppState> {
       }
     }
 
+    let initialVibe = defaultAppState.vibe;
+    try {
+      const stateStr = window.localStorage.getItem("excalidraw-state");
+      if (stateStr) {
+        const state = JSON.parse(stateStr);
+        if (state.vibe) {
+          initialVibe = state.vibe;
+        }
+      }
+    } catch (e) {}
+
     this.state = {
       ...defaultAppState,
+      vibe: initialVibe,
       theme,
       exportWithDarkMode: theme === THEME.DARK,
       isLoading: true,
@@ -2388,6 +2400,7 @@ class App extends React.Component<AppProps, AppState> {
             "excalidraw--viewport-status-label":
               !!this.props.viewportStatusFrame?.label,
             "excalidraw--zen-mode": this.state.zenModeEnabled,
+            "vibe--spotify": this.state.vibe === "spotify",
           },
         )}
         style={{

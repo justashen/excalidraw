@@ -28,6 +28,7 @@ export const getDefaultAppState = (): Omit<
   return {
     showWelcomeScreen: false,
     theme: THEME.LIGHT,
+    vibe: "default",
     collaborators: new Map(),
     currentItemBackgroundColor: DEFAULT_ELEMENT_PROPS.backgroundColor,
     currentItemEndArrowhead: "arrow",
@@ -164,6 +165,7 @@ const APP_STATE_STORAGE_CONF = (<
   config)({
   showWelcomeScreen: { browser: true, export: false, server: false },
   theme: { browser: true, export: false, server: false },
+  vibe: { browser: true, export: false, server: false },
   collaborators: { browser: false, export: false, server: false },
   currentItemBackgroundColor: { browser: true, export: false, server: false },
   currentItemEndArrowhead: { browser: true, export: false, server: false },

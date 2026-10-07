@@ -175,6 +175,44 @@
     --default-icon-size: 1.25rem;
   }
 
+  &.vibe--spotify {
+    --color-primary: #1db954;
+    --color-primary-darker: #1aa34a;
+    --color-primary-darkest: #188c3f;
+    --color-primary-light: #d1f1da;
+    --color-primary-light-darker: #b2e6c1;
+    --color-primary-hover: #1ed760;
+
+    --color-selection: var(--color-primary);
+    --color-logo-text: #083817;
+    --color-surface-high: #ebfbee;
+    --color-surface-mid: #f4fcf6;
+    --color-surface-low: #e3fae8;
+    --color-brand-hover: #1ed760;
+    --color-on-primary-container: #0b4d21;
+    --color-surface-primary-container: #d1f1da;
+    --color-brand-active: #188c3f;
+  }
+
+  &.theme--dark.vibe--spotify {
+    --color-primary: #1ed760;
+    --color-primary-darker: #1db954;
+    --color-primary-darkest: #1aa34a;
+    --color-primary-light: #2c4433;
+    --color-primary-light-darker: #213527;
+    --color-primary-hover: #1ff06a;
+
+    --color-selection: var(--color-primary);
+    --color-logo-text: #d1f1da;
+    --color-surface-high: #243528;
+    --color-surface-low: hsl(135, 12%, 15%);
+    --color-surface-mid: hsl(135, 10%, 10%);
+    --color-brand-hover: #1ff06a;
+    --color-on-primary-container: #d1f1da;
+    --color-surface-primary-container: #213527;
+    --color-brand-active: #b2e6c1;
+  }
+
   &.theme--dark {
     &.theme--dark-background-none {
       background: none;

@@ -333,6 +333,7 @@ export interface AppState {
     left: number;
   } | null;
   showWelcomeScreen: boolean;
+  vibe: string;
   isLoading: boolean;
   errorMessage: React.ReactNode;
   activeEmbeddable: {

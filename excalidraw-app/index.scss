@@ -7,6 +7,14 @@
     --color-primary-contrast-offset: #726dff; // to offset Chubb illusion
   }
 
+  &.vibe--spotify {
+    --color-primary-contrast-offset: #1db954; 
+  }
+
+  &.theme--dark.vibe--spotify {
+    --color-primary-contrast-offset: #1ed760;
+  }
+
   .footer-center {
     justify-content: flex-end;
     margin-top: auto;

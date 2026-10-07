@@ -554,7 +554,8 @@ body.excalidraw-cursor-resize * {
       background-color: var(--button-gray-2);
     }
 
-    &__language {
+    &__language,
+    &__vibe {
       height: 2rem;
       background-color: var(--island-bg-color);
       border-color: var(--default-border-color) !important;

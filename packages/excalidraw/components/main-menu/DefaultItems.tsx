@@ -321,6 +321,33 @@ export const ToggleTheme = (
 };
 ToggleTheme.displayName = "ToggleTheme";
 
+export const ChangeVibe = ({ style }: { style?: React.CSSProperties }) => {
+  const appState = useUIAppState();
+  const setAppState = useExcalidrawSetAppState();
+
+  const vibes = [
+    { code: "default", label: "Default Vibe" },
+    { code: "spotify", label: "Spotify Vibe" },
+  ];
+
+  return (
+    <select
+      className="dropdown-select dropdown-select__vibe"
+      onChange={({ target }) => setAppState({ vibe: target.value })}
+      value={appState.vibe || "default"}
+      aria-label="Select Vibe"
+      style={style}
+    >
+      {vibes.map((v) => (
+        <option key={v.code} value={v.code}>
+          {v.label}
+        </option>
+      ))}
+    </select>
+  );
+};
+ChangeVibe.displayName = "ChangeVibe";
+
 export const ChangeCanvasBackground = () => {
   const { t } = useI18n();
   const appState = useUIAppState();
