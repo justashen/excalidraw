@@ -147,7 +147,10 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
+import { DurowaveIcon } from "./components/DurowaveIcon";
 import { AppSidebar } from "./components/AppSidebar";
+import { TeamsLoginModal } from "./components/TeamsLoginModal";
+import { TeamsDashboard } from "./components/TeamsDashboard";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -230,7 +233,37 @@ const initializeScene = async (opts: {
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
-  const localDataState = importFromLocalStorage();
+  let localDataState = importFromLocalStorage();
+
+  const token = localStorage.getItem("team_jwt");
+  const docId = localStorage.getItem("active_cloud_doc");
+  if (token && docId) {
+    opts.excalidrawAPI?.updateScene({ appState: { isLoading: true, name: "Loading..." } });
+    try {
+      const res = await fetch(`http://localhost:3002/api/documents/${docId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const doc = await res.json();
+      if (res.ok) {
+        let cloudData = doc.data;
+        if (typeof cloudData === "string") {
+          try { cloudData = JSON.parse(cloudData); } catch (e) {}
+        }
+        localDataState = {
+          elements: cloudData?.elements || [],
+          appState: {
+            ...(localDataState?.appState || {}),
+            ...(cloudData?.appState || {}),
+            name: doc.title || "Untitled"
+          }
+        };
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      opts.excalidrawAPI?.updateScene({ appState: { isLoading: false } });
+    }
+  }
 
   let scene: Omit<
     RestoredDataState,
@@ -372,10 +405,68 @@ const initializeScene = async (opts: {
   return { scene: null, isExternalScene: false };
 };
 
+const DocumentTitleInput = ({ appState, excalidrawAPI }: any) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(appState?.name || "Untitled");
+
+  useEffect(() => {
+    if (!isEditing) {
+      setTitle(appState?.name || "Untitled");
+    }
+  }, [appState?.name, isEditing]);
+
+  return (
+    <input 
+      style={{
+        fontWeight: "bold",
+        color: "var(--color-text-primary)",
+        background: "var(--color-surface-low)",
+        padding: "6px 12px",
+        borderRadius: "var(--border-radius-lg, 8px)",
+        border: "1px solid transparent",
+        boxShadow: "0 0 0 1px var(--color-surface-lowest)",
+        pointerEvents: "auto",
+        marginLeft: "10px",
+        order: 2,
+        width: "200px",
+        fontFamily: "inherit",
+        fontSize: "inherit"
+      }}
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      onFocus={(e) => {
+        setIsEditing(true);
+        e.target.style.border = "1px solid var(--color-primary)";
+        e.target.style.background = "var(--color-surface-lowest)";
+      }}
+      onBlur={(e) => {
+        setIsEditing(false);
+        e.target.style.border = "1px solid transparent";
+        e.target.style.background = "var(--color-surface-low)";
+        
+        if (excalidrawAPI) {
+          excalidrawAPI.updateScene({ appState: { name: e.target.value } });
+          
+          const token = localStorage.getItem("team_jwt");
+          const docId = localStorage.getItem("active_cloud_doc");
+          if (token && docId) {
+            fetch(`http://localhost:3002/api/documents/${docId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ title: e.target.value })
+            }).catch(console.error);
+          }
+        }
+      }}
+    />
+  );
+};
+
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -992,6 +1083,9 @@ const ExcalidrawWrapper = () => {
         autoFocus={true}
         theme={editorTheme}
         onThemeChange={setAppTheme}
+        renderTopLeftUI={(isMobile, appState) => {
+          return <DocumentTitleInput appState={appState} excalidrawAPI={excalidrawAPI} />;
+        }}
         renderTopRightUI={(isMobile) => {
           if (isMobile || !collabAPI || isCollabDisabled) {
             return null;
@@ -999,11 +1093,6 @@ const ExcalidrawWrapper = () => {
 
           return (
             <div className="excalidraw-ui-top-right">
-              {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
-                />
-              )}
 
               {collabError.message && <CollabError collabError={collabError} />}
               <LiveCollaborationTrigger
@@ -1029,11 +1118,56 @@ const ExcalidrawWrapper = () => {
       >
         <AppMainMenu
           onCollabDialogOpen={onCollabDialogOpen}
+          onTeamsLoginOpen={() => setIsTeamsModalOpen(true)}
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
         />
+        {isTeamsModalOpen &&
+          (localStorage.getItem("team_jwt") ? (
+            <TeamsDashboard
+              onClose={() => setIsTeamsModalOpen(false)}
+              onOpenDocument={async (docId, workspaceName) => {
+                const token = localStorage.getItem("team_jwt");
+                if (token && excalidrawAPI) {
+                  excalidrawAPI.resetScene();
+                  excalidrawAPI.updateScene({ appState: { isLoading: true } });
+                  try {
+                    const res = await fetch(`http://localhost:3002/api/documents/${docId}`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const doc = await res.json();
+                    if (res.ok) {
+                      localStorage.setItem("active_cloud_doc", docId);
+                      let data = doc.data;
+                      if (typeof data === "string") {
+                        try { data = JSON.parse(data); } catch(e) {}
+                      }
+                      
+                      excalidrawAPI.updateScene({ 
+                        elements: data?.elements || [], 
+                        appState: { 
+                          ...(data?.appState || {}), 
+                          isLoading: false,
+                          name: doc.title || "Untitled"
+                        } 
+                      });
+                      excalidrawAPI.setToast({ message: `Loaded ${doc.title}` });
+                    } else {
+                      excalidrawAPI.updateScene({ appState: { isLoading: false } });
+                      window.alert("Failed to load document");
+                    }
+                  } catch (e) {
+                    excalidrawAPI.updateScene({ appState: { isLoading: false } });
+                    console.error("Failed to load document", e);
+                  }
+                }
+              }}
+            />
+          ) : (
+            <TeamsLoginModal onClose={() => setIsTeamsModalOpen(false)} />
+          ))}
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}

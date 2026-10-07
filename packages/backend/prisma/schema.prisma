@@ -1,0 +1,50 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  name        String?
+  memberships WorkspaceMember[]
+  documents   Document[] @relation("Author")
+  createdAt   DateTime @default(now())
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  members   WorkspaceMember[]
+  documents Document[]
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  role        String   @default("VIEWER") // "ADMIN", "EDITOR", "VIEWER"
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, workspaceId])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  title       String
+  data        String   // SQLite doesn't support native Json, so we store stringified JSON
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  author      User     @relation("Author", fields: [authorId], references: [id])
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

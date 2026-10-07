@@ -124,6 +124,22 @@ export class LocalData {
     ) => {
       saveDataStateToLocalStorage(elements, appState);
 
+      const token = localStorage.getItem("team_jwt");
+      const docId = localStorage.getItem("active_cloud_doc");
+      if (token && docId) {
+        fetch(`http://localhost:3002/api/documents/${docId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: appState.name || "Untitled",
+            data: { elements, appState }
+          }),
+        }).catch(err => console.error("Cloud save failed", err));
+      }
+
       await this.fileStorage.saveFiles({
         elements,
         files,

@@ -2,8 +2,8 @@ import {
   loginIcon,
   ExcalLogo,
   eyeIcon,
+  TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
 
@@ -12,18 +12,17 @@ import { isDevEnv } from "@excalidraw/common";
 import type { Theme } from "@excalidraw/element/types";
 
 import { LanguageList } from "../app-language/LanguageList";
-import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { saveDebugState } from "./DebugCanvas";
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
+  onTeamsLoginOpen: () => void;
   isCollaborating: boolean;
   isCollabEnabled: boolean;
   theme: Theme | "system";
   refresh: () => void;
 }> = React.memo((props) => {
-  const { t } = useI18n();
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
@@ -41,25 +40,27 @@ export const AppMainMenu: React.FC<{
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.Separator />
-      <MainMenu.ItemLink
-        icon={ExcalLogo}
-        href={`${
-          import.meta.env.VITE_APP_PLUS_LP
-        }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
-        className=""
-      >
-        Excalidraw+
-      </MainMenu.ItemLink>
-      <MainMenu.DefaultItems.Socials />
-      <MainMenu.ItemLink
+
+      <MainMenu.Item
         icon={loginIcon}
-        href={`${import.meta.env.VITE_APP_PLUS_APP}${
-          isExcalidrawPlusSignedUser ? "" : "/sign-up"
-        }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
+        onSelect={props.onTeamsLoginOpen}
         className="highlighted"
       >
-        {isExcalidrawPlusSignedUser ? t("labels.signIn") : t("labels.signUp")}
-      </MainMenu.ItemLink>
+        {localStorage.getItem("team_jwt")
+          ? "Teams Dashboard"
+          : "Login to Teams"}
+      </MainMenu.Item>
+      {localStorage.getItem("team_jwt") && (
+        <MainMenu.Item
+          icon={TrashIcon}
+          onSelect={() => {
+            localStorage.removeItem("team_jwt");
+            window.location.reload();
+          }}
+        >
+          Log Out
+        </MainMenu.Item>
+      )}
       {isDevEnv() && (
         <MainMenu.Item
           icon={eyeIcon}
@@ -84,6 +85,12 @@ export const AppMainMenu: React.FC<{
         <LanguageList style={{ width: "100%" }} />
       </MainMenu.ItemCustom>
       <MainMenu.DefaultItems.ChangeCanvasBackground />
+      <MainMenu.Separator />
+      <MainMenu.ItemCustom>
+        <div style={{ fontSize: "0.75rem", color: "var(--color-gray-50)", textAlign: "center", padding: "0.5rem 0", cursor: "default" }}>
+          Made possible by the Excalidraw open-source project.
+        </div>
+      </MainMenu.ItemCustom>
     </MainMenu>
   );
 });
