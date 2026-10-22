@@ -327,6 +327,7 @@ export const ChangeVibe = ({ style }: { style?: React.CSSProperties }) => {
 
   const vibes = [
     { code: "default", label: "Default Vibe" },
+    { code: "durowave", label: "Durowave Vibe" },
     { code: "spotify", label: "Spotify Vibe" },
   ];
 

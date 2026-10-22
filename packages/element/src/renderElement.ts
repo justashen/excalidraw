@@ -363,6 +363,61 @@ const drawImagePlaceholder = (
   context: CanvasRenderingContext2D,
   theme: StaticCanvasRenderConfig["theme"],
 ) => {
+  const isPdfAttachment = (element as any).customData?.attachmentType === "pdf";
+
+  if (isPdfAttachment) {
+    const isDark = theme === THEME.DARK;
+    // Premium document card placeholder background
+    context.fillStyle = isDark ? "#1e1e24" : "#f8f9fa";
+    context.strokeStyle = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)";
+    context.lineWidth = 1;
+
+    if (context.roundRect) {
+      context.beginPath();
+      context.roundRect(0, 0, element.width, element.height, 8);
+      context.fill();
+      context.stroke();
+    } else {
+      context.fillRect(0, 0, element.width, element.height);
+      context.strokeRect(0, 0, element.width, element.height);
+    }
+
+    // Top red accent badge
+    context.fillStyle = "#e03131";
+    if (context.roundRect) {
+      context.beginPath();
+      context.roundRect(14, 14, 46, 22, 4);
+      context.fill();
+    } else {
+      context.fillRect(14, 14, 46, 22);
+    }
+    context.fillStyle = "#ffffff";
+    context.font = "bold 11px system-ui, -apple-system, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("PDF", 37, 25);
+
+    // Filename label
+    const fileName = (element as any).customData?.filename || "Document.pdf";
+    context.fillStyle = isDark ? "#c1c2c5" : "#495057";
+    context.font = "500 13px system-ui, -apple-system, sans-serif";
+    context.textAlign = "left";
+    context.textBaseline = "top";
+    
+    // Truncate text if needed
+    let displayTitle = fileName;
+    const maxTextWidth = Math.max(element.width - 28, 40);
+    if (context.measureText(displayTitle).width > maxTextWidth) {
+      while (displayTitle.length > 3 && context.measureText(displayTitle + "…").width > maxTextWidth) {
+        displayTitle = displayTitle.slice(0, -1);
+      }
+      displayTitle += "…";
+    }
+    context.fillText(displayTitle, 14, 46);
+
+    return;
+  }
+
   context.fillStyle = theme === THEME.DARK ? "#2E2E2E" : "#E7E7E7";
   context.fillRect(0, 0, element.width, element.height);
 

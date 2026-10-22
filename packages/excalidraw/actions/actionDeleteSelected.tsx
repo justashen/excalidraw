@@ -33,6 +33,7 @@ import { IconButton } from "../components/IconButton";
 import { useStylesPanelMode } from "../components/App";
 
 import { register } from "./register";
+import { deletePdfAttachment } from "../data/pdf";
 
 import type { AppClassProperties, AppState } from "../types";
 
@@ -109,6 +110,22 @@ const deleteSelectedElements = (
           }
         });
       }
+      // If deleting an encrypted PDF document attachment, purge it from R2 storage
+      if ((el as any).customData?.attachmentType === "pdf" && (el as any).customData?.fileId) {
+        deletePdfAttachment((el as any).customData.fileId);
+        // Remove file from local files cache so it cannot be rendered
+        const fileId = (el as any).fileId;
+        if (fileId && (app as any).files) {
+          delete (app as any).files[fileId];
+        }
+        return newElementWith(el, {
+          isDeleted: true,
+          customData: {
+            ...((el as any).customData || {}),
+            deletedPermanently: true,
+          },
+        });
+      }
       return newElementWith(el, { isDeleted: true });
     }
 
@@ -122,6 +139,20 @@ const deleteSelectedElements = (
     }
 
     if (isBoundToContainer(el) && appState.selectedElementIds[el.containerId]) {
+      if ((el as any).customData?.attachmentType === "pdf" && (el as any).customData?.fileId) {
+        deletePdfAttachment((el as any).customData.fileId);
+        const fileId = (el as any).fileId;
+        if (fileId && (app as any).files) {
+          delete (app as any).files[fileId];
+        }
+        return newElementWith(el, {
+          isDeleted: true,
+          customData: {
+            ...((el as any).customData || {}),
+            deletedPermanently: true,
+          },
+        });
+      }
       return newElementWith(el, { isDeleted: true });
     }
     return el;
@@ -270,6 +301,35 @@ export const actionDeleteSelected = register({
         },
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       };
+    }
+
+    // If deleting an encrypted PDF document attachment, ask confirmation in a minimal dialog first
+    const pdfElement = elements.find(
+      (el) =>
+        (appState.selectedElementIds[el.id] ||
+          (isBoundToContainer(el) && appState.selectedElementIds[el.containerId])) &&
+        (el as any).customData?.attachmentType === "pdf" &&
+        (el as any).customData?.fileId,
+    );
+
+    if (pdfElement && !(formData as any)?.confirmed) {
+      const filename = (pdfElement as any).customData?.filename;
+      import("../components/ActiveConfirmDialog").then(({ activeConfirmDialogAtom }) => {
+        (app as any).updateEditorAtom(activeConfirmDialogAtom, {
+          type: "deletePdf",
+          filename,
+          onConfirm: () => {
+            (app as any).actionManager.executeAction(actionDeleteSelected, "ui", {
+              confirmed: true,
+            });
+            // Clear history so Ctrl+Z does not resurrect a permanently deleted cloud file
+            if (typeof (app as any).resetHistory === "function") {
+              (app as any).resetHistory();
+            }
+          },
+        });
+      });
+      return false;
     }
 
     let { elements: nextElements, appState: nextAppState } =

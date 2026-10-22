@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma';
 import { authenticateJWT, requireRole } from '../middleware/rbac';
 import { AuthRequest } from '../middleware/rbac';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Get all documents for a workspace (Requires at least VIEWER)
 router.get('/workspace/:workspaceId', authenticateJWT, requireRole(['ADMIN', 'EDITOR', 'VIEWER']), async (req: AuthRequest, res) => {
@@ -80,11 +79,20 @@ router.put('/:documentId', authenticateJWT, async (req: AuthRequest, res) => {
     });
     if (!membership || membership.role === 'VIEWER') return res.status(403).json({ error: 'Forbidden' });
 
+    if (title && (typeof title !== 'string' || title.length > 200)) {
+      return res.status(400).json({ error: 'Title must be a string under 200 characters' });
+    }
+
+    const serializedData = typeof data === 'string' ? data : JSON.stringify(data);
+    if (serializedData && serializedData.length > 5 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Document data exceeds maximum allowed size (5MB)' });
+    }
+
     const updated = await prisma.document.update({
       where: { id: documentId },
       data: {
-        data: typeof data === 'string' ? data : JSON.stringify(data),
-        ...(title ? { title } : {})
+        data: serializedData,
+        ...(title ? { title: title.trim() } : {})
       }
     });
     res.json(updated);

@@ -352,6 +352,8 @@ import {
 } from "../data/blob";
 
 import { fileOpen } from "../data/filesystem";
+import { processAndUploadPdf, fetchAndDecryptPdf } from "../data/pdf";
+import { getActiveEncryptionKey } from "../data/vault";
 import {
   showHyperlinkTooltip,
   hideHyperlinkToolip,
@@ -378,6 +380,7 @@ import {
   getViewportForZoomWithScrollConstraints,
 } from "../viewport";
 import { ElementCanvasButtons } from "../components/ElementCanvasButtons";
+import { PdfAttachmentCard } from "../components/PdfAttachmentCard";
 import { LaserTrails } from "../laserTrails";
 import { withBatchedUpdates, withBatchedUpdatesThrottled } from "../reactUtils";
 import { isOverScrollBars } from "../scene/scrollbars";
@@ -2401,6 +2404,7 @@ class App extends React.Component<AppProps, AppState> {
               !!this.props.viewportStatusFrame?.label,
             "excalidraw--zen-mode": this.state.zenModeEnabled,
             "vibe--spotify": this.state.vibe === "spotify",
+            "vibe--durowave": this.state.vibe === "durowave",
           },
         )}
         style={{
@@ -2521,6 +2525,19 @@ class App extends React.Component<AppProps, AppState> {
                               />
                             )}
                           {this.isDefaultUIEnabled() &&
+                            selectedElements.length === 1 &&
+                            (firstSelectedElement as any).customData?.attachmentType === "pdf" && (
+                              <PdfAttachmentCard
+                                key={`pdf-${firstSelectedElement.id}`}
+                                element={firstSelectedElement}
+                                elementsMap={renderableElementsMap}
+                                onDelete={() => {
+                                  this.actionManager.executeAction(actionDeleteSelected);
+                                }}
+                                setToast={this.setToast}
+                              />
+                            )}
+                          {this.isDefaultUIEnabled() &&
                             this.props.aiEnabled !== false &&
                             selectedElements.length === 1 &&
                             isMagicFrameElement(firstSelectedElement) && (
@@ -2608,6 +2625,16 @@ class App extends React.Component<AppProps, AppState> {
                               }}
                             />
                           )}
+                          {this.state.vibe === "durowave" && this.state.theme === THEME.DARK && (
+                            <video
+                              className="durowave-canvas-bg-video"
+                              src="/durowave.mp4"
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                            />
+                          )}
                           <StaticCanvas
                             canvas={this.canvas}
                             rc={this.rc}
@@ -2635,7 +2662,10 @@ class App extends React.Component<AppProps, AppState> {
                               renderGrid: isGridModeEnabled(this),
                               renderLinks: this.isLinksEnabled(),
                               canvasBackgroundColor:
-                                this.state.viewBackgroundColor,
+                                this.state.vibe === "durowave" &&
+                                this.state.theme === THEME.DARK
+                                  ? "transparent"
+                                  : this.state.viewBackgroundColor,
                               embedsValidationStatus:
                                 this.embedsValidationStatus,
                               elementsPendingErasure:
@@ -2659,7 +2689,10 @@ class App extends React.Component<AppProps, AppState> {
                                 isExporting: false,
                                 renderGrid: false,
                                 canvasBackgroundColor:
-                                  this.state.viewBackgroundColor,
+                                  this.state.vibe === "durowave" &&
+                                  this.state.theme === THEME.DARK
+                                    ? "transparent"
+                                    : this.state.viewBackgroundColor,
                                 embedsValidationStatus:
                                   this.embedsValidationStatus,
                                 elementsPendingErasure:
@@ -3986,6 +4019,18 @@ class App extends React.Component<AppProps, AppState> {
       ),
       // cancelled even when drops are ignored (view mode, non-interactive),
       // so a dropped file doesn't make the browser navigate away to it
+      addEventListener(
+        this.ownerWindow,
+        EVENT.DRAG_OVER,
+        this.disableEvent,
+        false,
+      ),
+      addEventListener(
+        this.ownerWindow,
+        EVENT.DROP,
+        this.disableEvent,
+        false,
+      ),
       addEventListener(
         this.excalidrawContainerRef.current,
         EVENT.DRAG_OVER,
@@ -6528,6 +6573,33 @@ class App extends React.Component<AppProps, AppState> {
           );
         }
         if (!customEvent?.defaultPrevented) {
+          // If this is an encrypted PDF attachment, decrypt client-side first
+          if (this.hitLinkElement.customData?.attachmentType === "pdf") {
+            const fileId = this.hitLinkElement.customData.fileId;
+            const ivHex = this.hitLinkElement.customData.ivHex;
+            this.setToast({
+              message: "🔓 Decrypting document attachment...",
+              closable: true,
+              duration: 3000,
+            });
+            fetchAndDecryptPdf(fileId, ivHex)
+              .then((decryptedBlobUrl) => {
+                const target = isLocalLink(url) ? "_self" : "_blank";
+                const newWindow = this.ownerWindow.open(decryptedBlobUrl, target);
+                if (newWindow) {
+                  newWindow.opener = null;
+                }
+              })
+              .catch((err) => {
+                console.error("Failed to decrypt PDF attachment", err);
+                this.setToast({
+                  message: `⚠️ Decryption error: ${err.message}`,
+                  closable: true,
+                });
+              });
+            return;
+          }
+
           const target = isLocalLink(url) ? "_self" : "_blank";
           const newWindow = this.ownerWindow.open(undefined, target);
           // https://mathiasbynens.github.io/rel-noopener/
@@ -10932,6 +11004,9 @@ class App extends React.Component<AppProps, AppState> {
     placeholderImageElement: ExcalidrawImageElement,
     imageFile: File,
   ) => {
+    // Preserve customData attached to the incoming file (e.g. PDF attachment metadata)
+    const originalCustomData = (imageFile as any)?.customData;
+
     // at this point this should be guaranteed image file, but we do this check
     // to satisfy TS down the line
     if (!isSupportedImageFile(imageFile)) {
@@ -10974,6 +11049,9 @@ class App extends React.Component<AppProps, AppState> {
         imageFile = await resizeImageFile(imageFile, {
           maxWidthOrHeight,
         });
+        if (originalCustomData) {
+          (imageFile as any).customData = originalCustomData;
+        }
       } catch (error: any) {
         console.error(
           "Error trying to resizing image file on insertion",
@@ -11041,6 +11119,14 @@ class App extends React.Component<AppProps, AppState> {
 
             // no need to create a new instance anymore, just assign the natural dimensions
             Object.assign(initializedImageElement, naturalDimensions);
+          }
+
+          const finalCustomData = originalCustomData ?? (imageFile as any).customData;
+          if (finalCustomData?.attachmentType === 'pdf') {
+            initializedImageElement = newElementWith(initializedImageElement, {
+              customData: finalCustomData,
+              link: null,
+            });
           }
 
           resolve(initializedImageElement);
@@ -11306,6 +11392,9 @@ class App extends React.Component<AppProps, AppState> {
   };
 
   private handleAppOnDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
     if (!this.isFileDropEnabled()) {
       return;
     }
@@ -11336,10 +11425,9 @@ class App extends React.Component<AppProps, AppState> {
             fileHandle,
           );
         } catch (error: any) {
-          if (error.name !== "EncodingError") {
-            throw new Error(t("alerts.couldNotLoadInvalidFile"));
-          }
-          // if EncodingError, fall through to insert as regular image
+          // If the file does not contain an embedded Excalidraw scene,
+          // safely fall through to insert as a regular image element
+          scene = null;
         }
         if (scene) {
           if (insertPosition) {
@@ -11369,10 +11457,98 @@ class App extends React.Component<AppProps, AppState> {
 
     const imageFiles = fileItems
       .map((data) => data.file)
-      .filter((file) => isSupportedImageFile(file));
+      .filter((file): file is File => {
+        if (!file) return false;
+        if (isSupportedImageFile(file)) return true;
+        const name = (file.name || "").toLowerCase();
+        return (
+          file.type.startsWith("image/") ||
+          /\.(png|jpe?g|svg|webp|gif|bmp|ico|avif)$/i.test(name)
+        );
+      });
+
+    const pdfFiles = fileItems
+      .map((data) => data.file)
+      .filter((file) => file && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")));
+
+    if (pdfFiles.length > 0) {
+      if (!this.isToolSupported("image")) {
+        this.setState({ errorMessage: "Image insertion is not supported." });
+        return;
+      }
+
+      const token = localStorage.getItem("team_jwt");
+      if (!token) {
+        this.setToast({
+          message: "🔒 Sign in required: Please sign in to upload and attach PDF documents.",
+          closable: true,
+          duration: 6000,
+        });
+        this.ownerDocument.dispatchEvent(new CustomEvent("open-teams-login"));
+        return;
+      }
+
+      const activeKey = await getActiveEncryptionKey();
+      if (!activeKey) {
+        this.setToast({
+          message: "Vault locked. Please sign in to attach encrypted documents.",
+          closable: true,
+          duration: 6000,
+        });
+        this.ownerDocument.dispatchEvent(new CustomEvent("open-teams-login"));
+        return;
+      }
+
+      this.setToast({
+        message: "Encrypting and attaching document...",
+        duration: 8000,
+        closable: true,
+      });
+
+      const processedPdfImages = await Promise.all(pdfFiles.map(async (file) => {
+        try {
+          if (!file) throw new Error("No file");
+          const { thumbnailDataUrl, fileId, ivHex } = await processAndUploadPdf(file);
+          
+          const res = await fetch(thumbnailDataUrl);
+          const blob = await res.blob();
+          const thumbnailFile = new File([blob], `${file.name}-thumbnail.png`, { type: "image/png" });
+          
+          (thumbnailFile as any).customData = {
+            attachmentType: 'pdf',
+            fileId,
+            ivHex,
+            filename: file.name,
+          };
+          
+          this.setToast({
+            message: `Attached ${file.name}`,
+            duration: 3000,
+            closable: true,
+          });
+          return thumbnailFile;
+        } catch (e: any) {
+          console.error("PDF Processing Error:", e);
+          this.setToast({
+            message: `Could not attach ${file?.name || "document"}: ${e.message}`,
+            duration: 6000,
+            closable: true,
+          });
+          return null;
+        }
+      }));
+      
+      const validPdfImages = processedPdfImages.filter(Boolean) as File[];
+      if (validPdfImages.length > 0) {
+        await this.insertImages(validPdfImages, sceneX, sceneY);
+        return;
+      }
+      return; // Do not fall through to loadFileToCanvas
+    }
 
     if (imageFiles.length > 0 && this.isToolSupported("image")) {
-      return this.insertImages(imageFiles, sceneX, sceneY);
+      await this.insertImages(imageFiles, sceneX, sceneY);
+      return;
     }
     const excalidrawLibrary_ids = dataTransferList.getData(
       MIME_TYPES.excalidrawlibIds,

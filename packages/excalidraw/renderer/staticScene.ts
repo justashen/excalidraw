@@ -303,7 +303,12 @@ const _renderStaticScene = ({
     normalizedHeight,
     theme: appState.theme,
     isExporting,
-    viewBackgroundColor: appState.viewBackgroundColor,
+    viewBackgroundColor:
+      !isExporting &&
+      appState.vibe === "durowave" &&
+      appState.theme === THEME.DARK
+        ? "transparent"
+        : appState.viewBackgroundColor,
   });
 
   // Apply zoom

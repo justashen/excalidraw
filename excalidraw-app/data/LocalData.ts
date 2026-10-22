@@ -11,6 +11,7 @@
  */
 
 import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
+import { encryptString, getActiveEncryptionKey } from "@excalidraw/excalidraw/data/vault";
 import {
   CANVAS_SEARCH_TAB,
   DEFAULT_SIDEBAR,
@@ -39,7 +40,7 @@ import type {
 import type { MaybePromise } from "@excalidraw/common/utility-types";
 
 import { appJotaiStore, atom } from "../app-jotai";
-import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
+import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS, BACKEND_URL } from "../app_constants";
 
 import { FileManager } from "./FileManager";
 import { FileStatusStore } from "./fileStatusStore";
@@ -74,6 +75,11 @@ const saveDataStateToLocalStorage = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
 ) => {
+  // Prevent plaintext canvas backup leakage to browser localStorage when zero-knowledge E2EE is active
+  if (sessionStorage.getItem("active_e2ee_enabled") === "true") {
+    return;
+  }
+
   const localStorageQuotaExceeded = appJotaiStore.get(
     localStorageQuotaExceededAtom,
   );
@@ -127,17 +133,34 @@ export class LocalData {
       const token = localStorage.getItem("team_jwt");
       const docId = localStorage.getItem("active_cloud_doc");
       if (token && docId) {
-        fetch(`http://localhost:3002/api/documents/${docId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            title: appState.name || "Untitled",
-            data: { elements, appState }
-          }),
-        }).catch(err => console.error("Cloud save failed", err));
+        sessionStorage.setItem("active_e2ee_enabled", "true");
+        const _appState = clearAppStateForLocalStorage(appState);
+        const rawPayload = JSON.stringify({ elements, appState: _appState });
+
+        // Transparent Zero-Knowledge E2EE Encryption with shared Workspace DEK
+        getActiveEncryptionKey().then(async (encryptionKey) => {
+          let payloadToSend = rawPayload;
+          if (encryptionKey) {
+            try {
+              payloadToSend = await encryptString(rawPayload, encryptionKey);
+            } catch (err) {
+              console.error("E2EE document encryption failed", err);
+            }
+          }
+
+          const saveTitle = appState.name && appState.name !== "Loading..." ? appState.name : undefined;
+          fetch(`${BACKEND_URL}/api/documents/${docId}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ...(saveTitle ? { title: saveTitle } : {}),
+              data: payloadToSend,
+            }),
+          }).catch((err) => console.error("Cloud save failed", err));
+        });
       }
 
       await this.fileStorage.saveFiles({

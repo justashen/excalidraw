@@ -1,6 +1,309 @@
-.TeamsLoginModal {
-  .Dialog__content {
-    padding: 20px;
-    width: 300px;
+@use "../../packages/excalidraw/css/variables.module" as *;
+
+.excalidraw {
+  .Modal.TeamsLoginModal {
+    .Island {
+      padding: 0 !important;
+      position: relative;
+      border-radius: var(--border-radius-lg, 0.75rem);
+      overflow: hidden;
+    }
+
+    .Dialog__content {
+      padding: 2.25rem 2rem 2.25rem !important;
+      width: 100% !important;
+      max-width: 420px !important;
+      box-sizing: border-box !important;
+      margin: 0 auto !important;
+    }
+
+    .TeamsLoginModal__close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.5rem;
+      border: none;
+      background: transparent;
+      color: var(--color-gray-50, #868e96);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      z-index: 5;
+
+      svg {
+        width: 1.25rem;
+        height: 1.25rem;
+      }
+
+      &:hover {
+        background: var(--color-surface-high, rgba(0, 0, 0, 0.06));
+        color: var(--text-primary-color);
+      }
+    }
+
+    .TeamsLoginModal__header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      margin-bottom: 1.75rem;
+
+      .brand-icon-wrapper {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 3.25rem;
+        height: 3.25rem;
+        border-radius: 0.875rem;
+        background: rgba(105, 101, 219, 0.15);
+        color: var(--color-primary, #6965db);
+        margin-bottom: 1rem;
+
+        svg {
+          width: 1.6rem;
+          height: 1.6rem;
+        }
+      }
+
+      h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--text-primary-color);
+        font-family: var(--ui-font);
+        letter-spacing: -0.01em;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--color-gray-60, #868e96);
+        line-height: 1.45;
+        max-width: 340px;
+      }
+    }
+
+    .TeamsLoginModal__form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.15rem;
+      width: 100%;
+
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        width: 100%;
+
+        label {
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--text-primary-color);
+          font-family: var(--ui-font);
+          letter-spacing: 0.01em;
+        }
+
+        .input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          width: 100%;
+
+          .input-icon {
+            position: absolute;
+            left: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-gray-40, #adb5bd);
+            pointer-events: none;
+            z-index: 2;
+
+            svg {
+              width: 1.15rem;
+              height: 1.15rem;
+            }
+          }
+
+          input {
+            width: 100%;
+            height: 2.75rem;
+            padding: 0 1rem 0 2.75rem;
+            font-size: 0.9375rem;
+            font-family: var(--ui-font);
+            color: var(--text-primary-color);
+            background: var(--color-surface-low, #f8f9fa);
+            border: 1px solid var(--default-border-color, #e0e0e0);
+            border-radius: 0.625rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            color-scheme: light dark;
+
+            &::placeholder {
+              color: var(--color-gray-40, #adb5bd);
+            }
+
+            &:focus {
+              border-color: var(--color-primary, #6965db);
+              box-shadow: 0 0 0 3px rgba(105, 101, 219, 0.2);
+            }
+
+            // Autofill / Auto-select styling override (fixes browser bright white background)
+            &:-webkit-autofill,
+            &:-webkit-autofill:hover,
+            &:-webkit-autofill:focus,
+            &:-webkit-autofill:active {
+              -webkit-box-shadow: 0 0 0 1000px #f8f9fa inset !important;
+              -webkit-text-fill-color: var(--text-primary-color, #121212) !important;
+              caret-color: var(--text-primary-color, #121212);
+              transition: background-color 5000s ease-in-out 0s;
+            }
+          }
+        }
+      }
+
+      .submit-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        height: 2.75rem;
+        width: 100%;
+        margin-top: 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        font-family: var(--ui-font);
+        color: #ffffff;
+        background: var(--color-primary, #6965db);
+        border: none;
+        border-radius: 0.625rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 2px 6px rgba(105, 101, 219, 0.25);
+
+        &:hover:not(:disabled) {
+          background: var(--color-primary-darker, #5b57d1);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(105, 101, 219, 0.35);
+        }
+
+        &:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
+        &:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        .spinner {
+          width: 1.15rem;
+          height: 1.15rem;
+          border: 2px solid rgba(255, 255, 255, 0.35);
+          border-top-color: #ffffff;
+          border-radius: 50%;
+          animation: spin 0.7s linear infinite;
+        }
+      }
+    }
+
+    .TeamsLoginModal__alert {
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.8125rem;
+      margin-top: 1rem;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      &--error {
+        background: rgba(224, 49, 49, 0.12);
+        color: #e03131;
+        border: 1px solid rgba(224, 49, 49, 0.25);
+      }
+
+      &--success {
+        background: rgba(47, 158, 68, 0.12);
+        color: #2f9e44;
+        border: 1px solid rgba(47, 158, 68, 0.25);
+      }
+    }
+
+    .TeamsLoginModal__footer {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 0.875rem;
+      color: var(--color-gray-60, #868e96);
+
+      button {
+        background: none;
+        border: none;
+        color: var(--color-primary, #6965db);
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0 0.25rem;
+        font-family: var(--ui-font);
+        transition: color 0.15s ease;
+
+        &:hover {
+          text-decoration: underline;
+          color: var(--color-primary-darker, #5b57d1);
+        }
+      }
+    }
+  }
+
+  &.theme--dark {
+    .Modal.TeamsLoginModal {
+      .TeamsLoginModal__close {
+        color: var(--color-gray-40, #adb5bd);
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.08);
+          color: #ffffff;
+        }
+      }
+
+      .input-group .input-wrapper {
+        .input-icon {
+          color: var(--color-gray-60, #868e96);
+        }
+
+        input {
+          background: #18181b !important;
+          border-color: #2e2e38 !important;
+          color: #ffffff !important;
+
+          &:focus {
+            background: #121214 !important;
+            border-color: var(--color-primary, #a8a5ff) !important;
+            box-shadow: 0 0 0 3px rgba(168, 165, 255, 0.2) !important;
+          }
+
+          // Force dark background when browser auto-selects / autofills in dark mode
+          &:-webkit-autofill,
+          &:-webkit-autofill:hover,
+          &:-webkit-autofill:focus,
+          &:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px #18181b inset !important;
+            -webkit-text-fill-color: #ffffff !important;
+            caret-color: #ffffff !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
+        }
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

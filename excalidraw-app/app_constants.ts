@@ -59,3 +59,9 @@ export const COOKIES = {
 export const isExcalidrawPlusSignedUser = document.cookie.includes(
   COOKIES.AUTH_STATE_COOKIE,
 );
+
+export const BACKEND_URL =
+  (import.meta.env.VITE_APP_BACKEND_URL as string) ||
+  (import.meta.env.VITE_APP_WS_SERVER_URL as string) ||
+  "http://localhost:3002";
+

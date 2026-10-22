@@ -47,6 +47,7 @@ interface LogoProps {
   size?: LogoSize;
   withText?: boolean;
   style?: React.CSSProperties;
+  children?: React.ReactNode;
   /**
    * If true, the logo will not be wrapped in a Link component.
    * The link prop will be ignored as well.
@@ -59,11 +60,13 @@ export const ExcalidrawLogo = ({
   style,
   size = "small",
   withText,
+  children,
 }: LogoProps) => {
   return (
     <div className={`ExcalidrawLogo is-${size}`} style={style}>
       <LogoIcon />
       {withText && <LogoText />}
+      {children}
     </div>
   );
 };

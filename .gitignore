@@ -1,8 +1,11 @@
 .DS_Store
+.env
+.env.development
 .env.development.local
 .env.local
 .env.production.local
 .env.test.local
+packages/backend/.env
 .envrc
 .eslintcache
 .history
@@ -10,6 +13,8 @@
 .vercel
 .vscode
 .yarn
+*.db
+*.sqlite
 *.log
 *.tgz
 build

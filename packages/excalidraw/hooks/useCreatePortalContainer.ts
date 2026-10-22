@@ -26,6 +26,7 @@ export const useCreatePortalContainer = (opts?: {
       );
       div.classList.toggle("theme--dark", theme === THEME.DARK);
       div.classList.toggle("vibe--spotify", vibe === "spotify");
+      div.classList.toggle("vibe--durowave", vibe === "durowave");
     }
   }, [div, theme, vibe, editorInterface.formFactor, opts?.className]);
 

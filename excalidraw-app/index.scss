@@ -15,6 +15,26 @@
     --color-primary-contrast-offset: #1ed760;
   }
 
+  &.vibe--durowave {
+    --color-primary-contrast-offset: #6366f1;
+
+    .App-menu__left,
+    .layer-ui__wrapper__top-right {
+      --island-bg-color: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  &.theme--dark.vibe--durowave {
+    --color-primary-contrast-offset: #818cf8;
+
+    .App-menu__left,
+    .layer-ui__wrapper__top-right {
+      --island-bg-color: rgba(18, 16, 38, 0.85);
+      backdrop-filter: blur(16px);
+    }
+  }
+
   .footer-center {
     justify-content: flex-end;
     margin-top: auto;

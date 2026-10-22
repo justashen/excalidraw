@@ -8,6 +8,7 @@ import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
 
 import { isDevEnv } from "@excalidraw/common";
+import { clearSessionVaultKeys } from "@excalidraw/excalidraw/data/vault";
 
 import type { Theme } from "@excalidraw/element/types";
 
@@ -48,13 +49,16 @@ export const AppMainMenu: React.FC<{
       >
         {localStorage.getItem("team_jwt")
           ? "Teams Dashboard"
-          : "Login to Teams"}
+          : "Login"}
       </MainMenu.Item>
       {localStorage.getItem("team_jwt") && (
         <MainMenu.Item
           icon={TrashIcon}
           onSelect={() => {
             localStorage.removeItem("team_jwt");
+            localStorage.removeItem("active_cloud_doc");
+            localStorage.removeItem("active_workspace_id");
+            clearSessionVaultKeys();
             window.location.reload();
           }}
         >

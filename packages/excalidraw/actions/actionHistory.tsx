@@ -49,6 +49,16 @@ const executeHistoryAction = (
 
     const [nextElementsMap, nextAppState] = result;
 
+    // Filter out permanently deleted attachments (e.g. PDFs purged from R2) so Ctrl+Z cannot resurrect them
+    for (const [id, element] of nextElementsMap.entries()) {
+      if (
+        (element as any).customData?.attachmentType === "pdf" &&
+        (element as any).customData?.deletedPermanently
+      ) {
+        nextElementsMap.delete(id);
+      }
+    }
+
     // order by fractional indices in case the map was accidently modified in the meantime
     const nextElements = orderByFractionalIndex(
       Array.from(nextElementsMap.values()),

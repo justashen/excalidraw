@@ -40,6 +40,7 @@ import { trackEvent } from "../../analytics";
 import { getTooltipDiv, updateTooltipPosition } from "../../components/Tooltip";
 
 import { t } from "../../i18n";
+import { fetchAndDecryptPdf } from "../../data/pdf";
 
 import { useAppProps, useEditorInterface, useExcalidrawAppState } from "../App";
 import { IconButton } from "../IconButton";
@@ -284,6 +285,30 @@ export const Hyperlink = ({
           className="excalidraw-hyperlinkContainer-link"
           target={isLocalLink(element.link) ? "_self" : "_blank"}
           onClick={(event) => {
+            if ((element as any).customData?.attachmentType === "pdf") {
+              event.preventDefault();
+              event.stopPropagation();
+              const fileId = (element as any).customData.fileId;
+              const ivHex = (element as any).customData.ivHex;
+              setToast({
+                message: "🔓 Decrypting document attachment...",
+                closable: true,
+                duration: 3000,
+              });
+              fetchAndDecryptPdf(fileId, ivHex)
+                .then((decryptedBlobUrl) => {
+                  window.open(decryptedBlobUrl, "_blank");
+                })
+                .catch((err) => {
+                  console.error("Failed to decrypt PDF attachment", err);
+                  setToast({
+                    message: `⚠️ Decryption error: ${err.message}`,
+                    closable: true,
+                  });
+                });
+              return;
+            }
+
             if (element.link && onLinkOpen) {
               const customEvent = wrapEvent(
                 EVENT.EXCALIDRAW_LINK,
@@ -303,7 +328,9 @@ export const Hyperlink = ({
           }}
           rel="noopener noreferrer"
         >
-          {element.link}
+          {(element as any).customData?.attachmentType === "pdf"
+            ? "📄 View PDF Attachment"
+            : element.link}
         </a>
       ) : (
         <div className="excalidraw-hyperlinkContainer-link">

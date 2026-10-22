@@ -1,19 +1,40 @@
-import { loginIcon } from "@excalidraw/excalidraw/components/icons";
+import { loginIcon, userIcon } from "@excalidraw/excalidraw/components/icons";
 import { POINTER_EVENTS } from "@excalidraw/common";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 export const AppWelcomeScreen: React.FC<{
   onCollabDialogOpen: () => any;
   isCollabEnabled: boolean;
+  onTeamsLoginOpen?: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("team_jwt"));
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsLoggedIn(!!localStorage.getItem("team_jwt"));
+    };
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
+  }, []);
+
   let headingContent;
 
-  if (isExcalidrawPlusSignedUser) {
+  if (isLoggedIn) {
+    headingContent = (
+      <>
+        Your drawings are synced and protected with E2EE Cloud Vault.
+        <br />
+        Saved securely in your browser and cloud storage.
+        <br />
+        Access your boards anywhere, anytime.
+      </>
+    );
+  } else if (isExcalidrawPlusSignedUser) {
     headingContent = t("welcomeScreen.app.center_heading_plus")
       .split(/(Excalidraw\+)/)
       .map((bit, idx) => {
@@ -64,16 +85,22 @@ export const AppWelcomeScreen: React.FC<{
               onSelect={() => props.onCollabDialogOpen()}
             />
           )}
-          {!isExcalidrawPlusSignedUser && (
-            <WelcomeScreen.Center.MenuItemLink
-              href={`${
-                import.meta.env.VITE_APP_PLUS_LP
-              }/plus?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenGuest`}
+          {isLoggedIn ? (
+            <WelcomeScreen.Center.MenuItem
+              onSelect={() => props.onTeamsLoginOpen?.()}
+              shortcut={null}
+              icon={userIcon}
+            >
+              Teams Dashboard
+            </WelcomeScreen.Center.MenuItem>
+          ) : (
+            <WelcomeScreen.Center.MenuItem
+              onSelect={() => props.onTeamsLoginOpen?.()}
               shortcut={null}
               icon={loginIcon}
             >
-              {t("labels.signUp")}
-            </WelcomeScreen.Center.MenuItemLink>
+              Sign in
+            </WelcomeScreen.Center.MenuItem>
           )}
         </WelcomeScreen.Center.Menu>
       </WelcomeScreen.Center>

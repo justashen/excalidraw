@@ -2,10 +2,113 @@
 
 .excalidraw {
   .confirm-dialog {
+    &--pdf-delete {
+      .Modal__content {
+        max-width: 400px !important;
+        margin: auto !important;
+      }
+
+      .Island {
+        padding: 1.25rem 1.25rem 1.15rem !important;
+        border-radius: var(--border-radius-lg, 12px);
+      }
+
+      .Dialog__title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.85rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--dialog-border-color, rgba(0, 0, 0, 0.08));
+      }
+
+      .Dialog__content {
+        margin-bottom: 1.2rem;
+      }
+
+      .Dialog__action-button {
+        height: 2.15rem;
+        padding: 0.35rem 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        border-radius: var(--border-radius-md, 8px);
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        transition: all 0.15s ease;
+
+        &:focus,
+        &:focus-visible,
+        &:hover,
+        &:active {
+          outline: none !important;
+          box-shadow: none !important;
+          border: none !important;
+        }
+
+        &:not(.Dialog__action-button--danger) {
+          background-color: var(--color-surface-high, #f1f3f5);
+          color: var(--color-on-surface, #374151);
+
+          &:hover {
+            background-color: var(--color-surface-low, #e5e7eb);
+            color: var(--color-on-surface, #111827);
+          }
+        }
+
+        &--danger {
+          background-color: #dc2626;
+          color: #ffffff;
+
+          &:hover {
+            background-color: #b91c1c;
+          }
+        }
+      }
+    }
+
     &-buttons {
       display: flex;
       column-gap: 0.5rem;
       justify-content: flex-end;
+      align-items: center;
+    }
+  }
+
+  .pdf-delete-confirm {
+    display: flex;
+    flex-direction: column;
+
+    &__prompt {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 400;
+      line-height: 1.6;
+      color: var(--color-on-surface, #374151);
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    &__filename {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 230px;
+      padding: 0.125rem 0.45rem;
+      border-radius: 6px;
+      background: var(--color-surface-high, rgba(0, 0, 0, 0.04));
+      border: 1px solid var(--default-border-color, rgba(0, 0, 0, 0.06));
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--color-on-surface, #1f2937);
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     }
   }
 }
+

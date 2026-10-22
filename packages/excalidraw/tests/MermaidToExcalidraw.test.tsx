@@ -63,7 +63,7 @@ mockMermaidToExcalidraw({
               points: [
                 [0, 0],
                 [0, 50],
-              ],
+              ] as any,
               roundness: {
                 type: 2,
               },

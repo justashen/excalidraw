@@ -8,43 +8,84 @@ generator client {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  password    String
-  name        String?
-  memberships WorkspaceMember[]
-  documents   Document[] @relation("Author")
-  createdAt   DateTime @default(now())
+  id                  String            @id @default(uuid())
+  email               String            @unique
+  password            String
+  name                String?
+  encryptedMasterKey  String?
+  passwordSalt        String?
+  publicKey           String?
+  encryptedPrivateKey String?
+  tokenVersion        Int               @default(1)
+  memberships         WorkspaceMember[]
+  documents           Document[]        @relation("Author")
+  workspaceKeys       WorkspaceKey[]
+  createdAt           DateTime          @default(now())
 }
 
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  members   WorkspaceMember[]
-  documents Document[]
-  createdAt DateTime @default(now())
+  id            String            @id @default(uuid())
+  name          String
+  members       WorkspaceMember[]
+  documents     Document[]
+  workspaceKeys WorkspaceKey[]
+  createdAt     DateTime          @default(now())
 }
 
 model WorkspaceMember {
-  id          String   @id @default(uuid())
-  user        User     @relation(fields: [userId], references: [id])
+  id          String    @id @default(uuid())
+  user        User      @relation(fields: [userId], references: [id])
   userId      String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   workspaceId String
-  role        String   @default("VIEWER") // "ADMIN", "EDITOR", "VIEWER"
-  createdAt   DateTime @default(now())
+  role        String    @default("VIEWER") // "ADMIN", "EDITOR", "VIEWER"
+  createdAt   DateTime  @default(now())
 
   @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model WorkspaceKey {
+  id           String    @id @default(uuid())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId  String
+  user         User      @relation(fields: [userId], references: [id])
+  userId       String
+  encryptedDek String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([workspaceId, userId])
 }
 
 model Document {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
-  data        String   // SQLite doesn't support native Json, so we store stringified JSON
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  data        String         // SQLite doesn't support native Json, so we store stringified JSON
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id])
   workspaceId String
-  author      User     @relation("Author", fields: [authorId], references: [id])
+  author      User           @relation("Author", fields: [authorId], references: [id])
   authorId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  files       DocumentFile[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([workspaceId])
+  @@index([authorId])
 }
+
+model DocumentFile {
+  id          String    @id @default(uuid())
+  fileId      String    @unique
+  filename    String
+  contentType String
+  userId      String
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  workspaceId String?
+  createdAt   DateTime  @default(now())
+
+  @@index([documentId])
+  @@index([workspaceId])
+}
+

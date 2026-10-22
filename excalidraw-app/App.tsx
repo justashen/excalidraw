@@ -35,6 +35,10 @@ import {
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+import { decryptString, getSessionMasterKey, getActiveEncryptionKey } from "@excalidraw/excalidraw/data/vault";
+import { regeneratePdfThumbnail } from "@excalidraw/excalidraw/data/pdf";
+import { BACKEND_URL } from "./app_constants";
+
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -143,6 +147,7 @@ import DebugCanvas, {
 import { useSimulatedCollaborators } from "./debugCollaborators";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { DebugDiagnostics } from "./components/DebugDiagnostics";
 
 import "./index.scss";
 
@@ -151,6 +156,7 @@ import { DurowaveIcon } from "./components/DurowaveIcon";
 import { AppSidebar } from "./components/AppSidebar";
 import { TeamsLoginModal } from "./components/TeamsLoginModal";
 import { TeamsDashboard } from "./components/TeamsDashboard";
+import { useSocketSync } from "./useSocketSync";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -238,28 +244,49 @@ const initializeScene = async (opts: {
   const token = localStorage.getItem("team_jwt");
   const docId = localStorage.getItem("active_cloud_doc");
   if (token && docId) {
-    opts.excalidrawAPI?.updateScene({ appState: { isLoading: true, name: "Loading..." } });
+    sessionStorage.setItem("active_e2ee_enabled", "true");
+    opts.excalidrawAPI?.updateScene({ appState: { isLoading: true } });
     try {
-      const res = await fetch(`http://localhost:3002/api/documents/${docId}`, {
+      const res = await fetch(`${BACKEND_URL}/api/documents/${docId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const doc = await res.json();
       if (res.ok) {
+        if (doc.workspaceId) {
+          localStorage.setItem("active_workspace_id", doc.workspaceId);
+        }
         let cloudData = doc.data;
         if (typeof cloudData === "string") {
-          try { cloudData = JSON.parse(cloudData); } catch (e) {}
-        }
-        localDataState = {
-          elements: cloudData?.elements || [],
-          appState: {
-            ...(localDataState?.appState || {}),
-            ...(cloudData?.appState || {}),
-            name: doc.title || "Untitled"
+          try {
+            const activeKey = await getActiveEncryptionKey();
+            const decryptedString = await decryptString(cloudData, activeKey);
+            cloudData = JSON.parse(decryptedString);
+          } catch (e: any) {
+            console.error("[Draw-Debug] Could not decrypt cloud document data:", e);
+            // If decryption failed because vault is locked, warn gracefully rather than breaking
+            opts.excalidrawAPI?.setToast({
+              message: "🔒 Document encrypted: Unlock your E2EE Vault via Sign-in to view contents.",
+              closable: true,
+              duration: 8000,
+            });
+            cloudData = null;
           }
-        };
+        }
+        if (cloudData && typeof cloudData === "object") {
+          localDataState = {
+            elements: restoreElements(cloudData?.elements || [], null),
+            appState: restoreAppState({
+              ...(localDataState?.appState || {}),
+              ...(cloudData?.appState || {}),
+              name: doc.title || "Untitled"
+            }, null)
+          };
+        }
+      } else {
+        console.warn(`[Draw-Debug] Cloud document fetch returned status ${res.status}`);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("[Draw-Debug] Failed to fetch active cloud document:", e);
     } finally {
       opts.excalidrawAPI?.updateScene({ appState: { isLoading: false } });
     }
@@ -450,7 +477,7 @@ const DocumentTitleInput = ({ appState, excalidrawAPI }: any) => {
           const token = localStorage.getItem("team_jwt");
           const docId = localStorage.getItem("active_cloud_doc");
           if (token && docId) {
-            fetch(`http://localhost:3002/api/documents/${docId}`, {
+            fetch(`${BACKEND_URL}/api/documents/${docId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({ title: e.target.value })
@@ -464,9 +491,11 @@ const DocumentTitleInput = ({ appState, excalidrawAPI }: any) => {
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
+  const { broadcastElements, broadcastPointer } = useSocketSync(excalidrawAPI);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isTeamsModalOpen, setIsTeamsModalOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -494,6 +523,17 @@ const ExcalidrawWrapper = () => {
     setTimeout(() => {
       trackEvent("load", "version", getVersion());
     }, VERSION_TIMEOUT);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenTeamsLogin = () => {
+      setIsTeamsModalOpen(true);
+    };
+
+    document.addEventListener("open-teams-login", handleOpenTeamsLogin);
+    return () => {
+      document.removeEventListener("open-teams-login", handleOpenTeamsLogin);
+    };
   }, []);
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
@@ -622,7 +662,8 @@ const ExcalidrawWrapper = () => {
               ),
             ]);
           });
-        } else if (isInitialLoad) {
+        } else {
+          // Both initial load and document switches should load image files from storage
           if (fileIds.length) {
             LocalData.fileStorage
               .getFiles(fileIds)
@@ -630,6 +671,49 @@ const ExcalidrawWrapper = () => {
                 if (loadedFiles.length) {
                   excalidrawAPI.addFiles(loadedFiles);
                 }
+
+                // If any files errored (missing in IndexedDB), check if they are PDF attachments and re-hydrate thumbnail
+                const pdfElementsToHydrate = (data.scene?.elements || []).filter(
+                  (el) =>
+                    isInitializedImageElement(el) &&
+                    erroredFiles.has(el.fileId) &&
+                    (el as any).customData?.attachmentType === "pdf" &&
+                    (el as any).customData?.fileId,
+                );
+
+                if (pdfElementsToHydrate.length) {
+                  await Promise.all(
+                    pdfElementsToHydrate.map(async (el) => {
+                      try {
+                        const customData = (el as any).customData;
+                        const thumbnailDataUrl = await regeneratePdfThumbnail(
+                          customData.fileId,
+                          customData.ivHex,
+                        );
+                        if (thumbnailDataUrl) {
+                          const binaryFile = {
+                            id: (el as any).fileId,
+                            dataURL: thumbnailDataUrl as any,
+                            mimeType: "image/png" as const,
+                            created: Date.now(),
+                            lastRetrieved: Date.now(),
+                          };
+                          excalidrawAPI.addFiles([binaryFile]);
+                          erroredFiles.delete((el as any).fileId);
+
+                          // Also cache back into LocalData fileStorage
+                          await LocalData.fileStorage.saveFiles({
+                            elements: [el],
+                            files: { [(el as any).fileId]: binaryFile },
+                          });
+                        }
+                      } catch (hydrateErr) {
+                        console.warn("Could not regenerate PDF thumbnail for attachment:", hydrateErr);
+                      }
+                    }),
+                  );
+                }
+
                 updateStaleImageStatuses({
                   excalidrawAPI,
                   erroredFiles,
@@ -637,11 +721,12 @@ const ExcalidrawWrapper = () => {
                 });
               });
           }
-          // on fresh load, clear unused files from IDB (from previous
-          // session)
-          LocalData.fileStorage.clearObsoleteFiles({
-            currentFileIds: fileIds,
-          });
+          if (isInitialLoad) {
+            // on fresh load, clear unused files from IDB (from previous session)
+            LocalData.fileStorage.clearObsoleteFiles({
+              currentFileIds: fileIds,
+            });
+          }
         }
       }
     },
@@ -693,8 +778,12 @@ const ExcalidrawWrapper = () => {
         !document.hidden &&
         ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
       ) {
+        // Under cloud document / E2EE mode, localStorage is not the source of truth for scene elements.
+        // Syncing from localStorage on window focus will overwrite newly placed elements with stale data!
+        const isCloudDocActive = !!localStorage.getItem("active_cloud_doc");
+
         // don't sync if local state is newer or identical to browser state
-        if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
+        if (!isCloudDocActive && isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
           const localDataState = importFromLocalStorage();
           const username = importUsernameFromLocalStorage();
           setLangCode(getPreferredLanguage());
@@ -760,16 +849,24 @@ const ExcalidrawWrapper = () => {
       }
     };
 
+    const preventWindowDrop = (event: DragEvent) => {
+      event.preventDefault();
+    };
+
     window.addEventListener(EVENT.HASHCHANGE, onHashChange, false);
     window.addEventListener(EVENT.UNLOAD, onUnload, false);
     window.addEventListener(EVENT.BLUR, visibilityChange, false);
     document.addEventListener(EVENT.VISIBILITY_CHANGE, visibilityChange, false);
     window.addEventListener(EVENT.FOCUS, visibilityChange, false);
+    window.addEventListener(EVENT.DRAG_OVER, preventWindowDrop, false);
+    window.addEventListener(EVENT.DROP, preventWindowDrop, false);
     return () => {
       window.removeEventListener(EVENT.HASHCHANGE, onHashChange, false);
       window.removeEventListener(EVENT.UNLOAD, onUnload, false);
       window.removeEventListener(EVENT.BLUR, visibilityChange, false);
       window.removeEventListener(EVENT.FOCUS, visibilityChange, false);
+      window.removeEventListener(EVENT.DRAG_OVER, preventWindowDrop, false);
+      window.removeEventListener(EVENT.DROP, preventWindowDrop, false);
       document.removeEventListener(
         EVENT.VISIBILITY_CHANGE,
         visibilityChange,
@@ -810,6 +907,8 @@ const ExcalidrawWrapper = () => {
   ) => {
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
+    } else {
+      broadcastElements(elements);
     }
 
     // this check is redundant, but since this is a hot path, it's best
@@ -1043,7 +1142,13 @@ const ExcalidrawWrapper = () => {
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
-        onPointerUpdate={collabAPI?.onPointerUpdate}
+        onPointerUpdate={(payload) => {
+          if (collabAPI?.isCollaborating()) {
+            collabAPI.onPointerUpdate(payload);
+          } else {
+            broadcastPointer(payload);
+          }
+        }}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,
@@ -1093,7 +1198,18 @@ const ExcalidrawWrapper = () => {
 
           return (
             <div className="excalidraw-ui-top-right">
-
+              {!localStorage.getItem("team_jwt") && (
+                <a
+                  href="#"
+                  className="plus-banner"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsTeamsModalOpen(true);
+                  }}
+                >
+                  Sign in
+                </a>
+              )}
               {collabError.message && <CollabError collabError={collabError} />}
               <LiveCollaborationTrigger
                 isCollaborating={isCollaborating}
@@ -1134,33 +1250,60 @@ const ExcalidrawWrapper = () => {
                   excalidrawAPI.resetScene();
                   excalidrawAPI.updateScene({ appState: { isLoading: true } });
                   try {
-                    const res = await fetch(`http://localhost:3002/api/documents/${docId}`, {
+                    const res = await fetch(`${BACKEND_URL}/api/documents/${docId}`, {
                       headers: { Authorization: `Bearer ${token}` }
                     });
                     const doc = await res.json();
                     if (res.ok) {
+                      sessionStorage.setItem("active_e2ee_enabled", "true");
                       localStorage.setItem("active_cloud_doc", docId);
+                      if (doc.workspaceId) {
+                        localStorage.setItem("active_workspace_id", doc.workspaceId);
+                      }
                       let data = doc.data;
                       if (typeof data === "string") {
-                        try { data = JSON.parse(data); } catch(e) {}
+                        try {
+                          const activeKey = await getActiveEncryptionKey();
+                          const decryptedString = await decryptString(data, activeKey);
+                          data = JSON.parse(decryptedString);
+                        } catch(e: any) {
+                          console.error("[Draw-Debug] Failed to decrypt document:", e);
+                          excalidrawAPI.setToast({
+                            message: `⚠️ E2EE Vault locked: ${e.message || "Could not decrypt document."}`,
+                            closable: true,
+                            duration: 6000,
+                          });
+                          data = null;
+                        }
                       }
                       
+                      const restoredElements = restoreElements(data?.elements || [], null);
+                      const restoredAppState = restoreAppState({ 
+                        ...(data?.appState || {}), 
+                        isLoading: false,
+                        name: doc.title || "Untitled"
+                      }, null);
+
                       excalidrawAPI.updateScene({ 
-                        elements: data?.elements || [], 
-                        appState: { 
-                          ...(data?.appState || {}), 
-                          isLoading: false,
-                          name: doc.title || "Untitled"
-                        } 
+                        elements: restoredElements, 
+                        appState: restoredAppState,
                       });
+                      loadImages({ scene: { elements: restoredElements, appState: restoredAppState }, isExternalScene: false });
                       excalidrawAPI.setToast({ message: `Loaded ${doc.title}` });
                     } else {
                       excalidrawAPI.updateScene({ appState: { isLoading: false } });
-                      window.alert("Failed to load document");
+                      excalidrawAPI.setToast({
+                        message: `Failed to load document: HTTP ${res.status}`,
+                        closable: true,
+                      });
                     }
-                  } catch (e) {
+                  } catch (e: any) {
                     excalidrawAPI.updateScene({ appState: { isLoading: false } });
-                    console.error("Failed to load document", e);
+                    console.error("[Draw-Debug] Failed to load document:", e);
+                    excalidrawAPI.setToast({
+                      message: `Network/Backend error loading document: ${e.message}`,
+                      closable: true,
+                    });
                   }
                 }
               }}
@@ -1171,6 +1314,7 @@ const ExcalidrawWrapper = () => {
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}
+          onTeamsLoginOpen={() => setIsTeamsModalOpen(true)}
         />
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
@@ -1192,7 +1336,11 @@ const ExcalidrawWrapper = () => {
             </OverwriteConfirmDialog.Action>
           )}
         </OverwriteConfirmDialog>
-        <AppFooter onChange={() => excalidrawAPI?.refresh()} />
+        <AppFooter
+          onChange={() => excalidrawAPI?.refresh()}
+          onToggleDiagnostics={() => setIsDiagnosticsOpen((prev) => !prev)}
+          isDiagnosticsOpen={isDiagnosticsOpen}
+        />
         {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
 
         <TTDDialogTrigger />
@@ -1430,6 +1578,12 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
+        <DebugDiagnostics
+          excalidrawAPI={excalidrawAPI}
+          onOpenTeamsLogin={() => setIsTeamsModalOpen(true)}
+          isOpen={isDiagnosticsOpen}
+          onClose={() => setIsDiagnosticsOpen(false)}
+        />
       </Excalidraw>
     </div>
   );
